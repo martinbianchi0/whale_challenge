@@ -31,7 +31,7 @@ El desarrollo se organiza en **etapas** con **checkpoints intermedios**, que per
 
 ---
 
-### 🔹 Etapa 2 — Modelado generativo (AE / VAE / GAN)
+### 🔹 Etapa 2 — Modelado generativo (AAE / VAE / GAN)
 - Objetivo: Aprender una representación latente del audio.
 - Modelos: Autoencoder, Variational Autoencoder, opcional GAN.
 - Acciones: Entrenamiento, visualización del espacio latente, generación de muestras sintéticas.
