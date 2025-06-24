@@ -42,3 +42,10 @@ def plot_roc_curves(roc_data_dict):
     plt.grid(True)
     plt.tight_layout()
     plt.show()
+
+def show_confusion_matrix(model, X_val, y_val):
+    y_pred = model.predict(X_val)
+    cm = confusion_matrix(y_val, y_pred)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    disp.plot(cmap='Blues')
+    plt.show()

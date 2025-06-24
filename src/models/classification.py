@@ -299,57 +299,74 @@ def find_best_MLP_hiperparams(train_df, hiperparameters, spectrogram_config, epo
 
 # RANDOM FOREST
 
-def train_random_forest(X_train, y_train, X_val, y_val, n_estimators, max_depth, seed):
-    rf = RandomForestClassifier(n_estimators=n_estimators, max_depth=max_depth, random_state=seed, verbose=1)
+def train_random_forest(X_train, y_train, X_val, y_val, n_estimators=100, max_depth=None, seed=42):
+    rf = RandomForestClassifier(n_estimators=n_estimators, max_depth=max_depth, random_state=seed)
     rf.fit(X_train, y_train)
     preds = rf.predict(X_val)
+
     acc = accuracy_score(y_val, preds)
+    f1score = f1_score(y_val, preds)
+    roc_auc = roc_auc_score(y_val, preds)
+
     print(f'Validation Accuracy (Random Forest): {acc:.4f}')
+    print(f'Validation F1-Score (Random Forest): {f1score:.4f}')
+    print(f'Validation ROC-AUC (Random Forest): {roc_auc:.4f}')
     return rf
 
-def find_best_RF_hiperparams(X, y, param_grid, n_folds=5, seed=42):
+def find_best_RF_hiperparams(X, y, hiperparameters, n_folds=5, seed=42):
     skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
     results = []
+    for n_estimators in hiperparameters['n_estimators']:
+        for use_weights in hiperparameters['weighted_loss']:
+            for max_depth in hiperparameters['max_depth']:
 
-    for params in ParameterGrid(param_grid):
-        fold_aucs = []
-        fold_f1s = []
-        for fold, (train_idx, val_idx) in enumerate(skf.split(X, y)):
-            X_train, X_val = X[train_idx], X[val_idx]
-            y_train, y_val = y[train_idx], y[val_idx]
-            rf = RandomForestClassifier(
-                n_estimators=params['n_estimators'],
-                max_depth=params['max_depth'],
-                random_state=seed,
-                n_jobs=-1
-            )
-            rf.fit(X_train, y_train)
-            preds = rf.predict(X_val)
-            probs = rf.predict_proba(X_val)[:, 1]
-            auc = roc_auc_score(y_val, probs)
-            f1 = f1_score(y_val, preds)
-            fold_aucs.append(auc)
-            fold_f1s.append(f1)
-        mean_auc = np.mean(fold_aucs)
-        mean_f1 = np.mean(fold_f1s)
-        results.append({
-            'params': params,
-            'mean_auc': mean_auc,
-            'mean_f1': mean_f1
-        })
-        print(f"Params: {params} => Mean AUC: {mean_auc:.4f}, Mean F1: {mean_f1:.4f}")
+                fold_aucs = []
+                fold_f1s = []
+                for fold, (train_idx, val_idx) in enumerate(skf.split(X, y)):
+                    X_train, X_val = X[train_idx], X[val_idx]
+                    y_train, y_val = y[train_idx], y[val_idx]
+                    rf = RandomForestClassifier(
+                        n_estimators=n_estimators,
+                        max_depth=max_depth,
+                        random_state=seed,
+                    )
+                    rf.fit(X_train, y_train)
+                    preds = rf.predict(X_val)
+                    probs = rf.predict_proba(X_val)[:, 1]
+                    auc = roc_auc_score(y_val, probs)
+                    f1 = f1_score(y_val, preds)
+                    fold_aucs.append(auc)
+                    fold_f1s.append(f1)
+
+                mean_auc = np.mean(fold_aucs)
+                mean_f1 = np.mean(fold_f1s)
+                results.append({
+                    'n_estimators': n_estimators,
+                    'max_depth': max_depth,
+                    'weighted_loss': use_weights,
+                    'mean_auc': mean_auc,
+                    'mean_f1': mean_f1
+                })
+
+                print(f"N_estimators: {n_estimators}, Max Depth {max_depth} , Weighted Loss: {use_weights} => Mean AUC: {mean_auc:.4f}, Mean F1: {mean_f1:.4f}")
 
     results = sorted(results, key=lambda x: (x['mean_auc'], x['mean_f1']), reverse=True)
     print("\nBest hyperparameters:")
     print(results[0])
-    return results[0]
 
-# RANDOM FOREST
+# GRADIENT BOOSTING
 
 def train_gradient_boosting(X_train, y_train, X_val, y_val):
     gb = GradientBoostingClassifier(n_estimators=100, learning_rate=0.1, random_state=42)
     gb.fit(X_train, y_train)
     preds = gb.predict(X_val)
+
     acc = accuracy_score(y_val, preds)
-    print(f"Validation Accuracy (Gradient Boosting): {acc:.4f}")
+    f1score = f1_score(y_val, preds)
+    roc_auc = roc_auc_score(y_val, preds)
+
+    print(f'Validation Accuracy (Gradient Boosting): {acc:.4f}')
+    print(f'Validation F1-Score (Gradient Boosting): {f1score:.4f}')
+    print(f'Validation ROC-AUC (Gradient Boosting): {roc_auc:.4f}')
     return gb
+
