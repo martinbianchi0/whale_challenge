@@ -1,3 +1,4 @@
+from sklearn.preprocessing import MinMaxScaler
 from IPython.display import Audio, display
 from src.preprocessing import *
 import matplotlib.pyplot as plt
@@ -5,7 +6,6 @@ import seaborn as sns
 import pandas as pd
 import numpy as np
 import librosa
-
 
 def display_random_samples(dataset:pd.DataFrame, seed:int, spectrogram_config:dict):
     np.random.seed(seed)
@@ -89,36 +89,42 @@ def display_random_samples(dataset:pd.DataFrame, seed:int, spectrogram_config:di
     plt.tight_layout()
     plt.show()
 
-def display_features_boxplots(audio_features_df:pd.DataFrame):
-    time_features = ['rms_energy', 'zcr']
-    freq_features = ['spectral_centroid', 'spectral_bandwidth', 'spectral_rolloff', 'spectral_flatness']
+def display_features_boxplots(audio_features_df: pd.DataFrame):
 
-    # TIME
-    fig, axes = plt.subplots(1, len(time_features), figsize=(5 * len(time_features), 5))
-    if len(time_features) == 1:
-        axes = [axes]
-    for i, feature in enumerate(time_features):
-        sns.boxplot(x='label', y=feature, data=audio_features_df, ax=axes[i], showfliers=False)
-        axes[i].set_title(f'{feature} by Class')
-        axes[i].set_xlabel('Class')
-        axes[i].set_xticks([0, 1])
-        axes[i].set_xticklabels(['Noise', 'Whale'])
+    features = ['rms_energy', 'zcr', 'spectral_centroid', 'spectral_bandwidth', 'spectral_rolloff', 'spectral_flatness']
+    feature_names = {
+        'rms_energy': 'RMS Energy',
+        'zcr': 'Zero Crossing Rate',
+        'spectral_centroid': 'Spectral Centroid',
+        'spectral_bandwidth': 'Spectral Bandwidth',
+        'spectral_rolloff': 'Spectral Rolloff',
+        'spectral_flatness': 'Spectral Flatness'
+    }
 
-    plt.suptitle('Time Domain Features by Class')
-    plt.tight_layout()
-    plt.show()
+    # Normalize features to [0, 1] scale
+    scaler = MinMaxScaler()
+    audio_features_df_norm = audio_features_df.copy()
+    audio_features_df_norm[features] = scaler.fit_transform(audio_features_df[features])
 
-    # FREQUENCY
-    fig, axes = plt.subplots(2, 2, figsize=(10, 10))
-    axes = axes.flatten()
-    for i, feature in enumerate(freq_features):
-        sns.boxplot(x='label', y=feature, data=audio_features_df, ax=axes[i], showfliers=False)
-        axes[i].set_title(f'{feature} by Class')
-        axes[i].set_xlabel('Class')
-        axes[i].set_xticks([0, 1])
-        axes[i].set_xticklabels(['Noise', 'Whale'])
+    plt.figure(figsize=(14, 6))
+    audio_features_df_melted = audio_features_df_norm.melt(id_vars='label', value_vars=features, var_name='Feature', value_name='Value')
+    audio_features_df_melted['Feature'] = audio_features_df_melted['Feature'].map(feature_names)
 
-    plt.suptitle('Frequency Domain Features by Class')
+    ax = sns.boxplot(
+        x='Feature',
+        y='Value',
+        hue='label',
+        data=audio_features_df_melted,
+        palette={0: '#FF6961', 1: '#1f77b4'},
+        showfliers=False
+    )
+    plt.xlabel('Feature')
+    plt.ylabel('Normalized Value')
+    plt.title('Normalized Audio Features by Class')
+
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles=handles, labels=['Noise', 'Whale'], title='Class')
+
     plt.tight_layout()
     plt.show()
 

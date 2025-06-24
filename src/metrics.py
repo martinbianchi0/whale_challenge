@@ -1,4 +1,4 @@
-from sklearn.metrics import roc_auc_score, roc_curve
+from sklearn.metrics import ConfusionMatrixDisplay, roc_auc_score, roc_curve, confusion_matrix
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import numpy as np

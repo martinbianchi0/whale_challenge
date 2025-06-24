@@ -1,17 +1,14 @@
+from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix, accuracy_score, f1_score, roc_auc_score
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 from torch.utils.data import TensorDataset, DataLoader
 from sklearn.model_selection import StratifiedKFold
 import matplotlib.pyplot as plt
 from ..preprocessing import *
 import torch.optim as optim
 import torch.nn as nn
+import numpy as np
 import torch
 import copy 
-
-import itertools
-from sklearn.model_selection import StratifiedKFold
-import numpy as np
 
 # MULTI-LAYER PERCEPTRON
 
@@ -42,8 +39,7 @@ class MLP(nn.Module):
     def forward(self, x):
         return self.model(x)
 
-    def train_model(self, train_loader, val_loader, epochs=50, lr=0.0001, weight_decay=1e-5,
-                    early_stopping_patience=None, use_class_weights=True, show_progress=True):
+    def train_model(self, train_loader, val_loader, epochs=50, lr=0.0001, weight_decay=1e-5, early_stopping_patience=None, use_class_weights=True, show_progress=True):
         self.to(self.device)
 
         # loss
@@ -144,6 +140,24 @@ class MLP(nn.Module):
 
         print(f'Validation Loss: {avg_val_loss:.4f}, Accuracy: {acc * 100:.2f}%, F1: {f1:.4f}, AUC: {auc:.4f}')
 
+    def confusion_matrix(self, val_loader):
+        self.eval()
+        all_preds = []
+        all_labels = []
+        with torch.no_grad():
+            for inputs, labels in val_loader:
+                inputs = inputs.to(self.device)
+                outputs = self(inputs)
+                preds = torch.argmax(outputs, dim=1).cpu().numpy()
+                all_preds.extend(preds)
+                all_labels.extend(labels.cpu().numpy())
+
+        cm = confusion_matrix(all_labels, all_preds)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+        disp.plot(cmap='Blues')
+        plt.title("Confusion Matrix - MLP")
+        plt.show()
+
 def test_maxfreq(audio_df, model, spectrogram_config:dict, max_freq_list=[500, 600, 1000], epochs=30, n_folds=5, patience=3, batch_size=128, learning_rate=1e-4, seed=42):
     device = torch.device("mps" if torch.mps.is_available() else "cpu")
     new_spectrogram_config = spectrogram_config.copy()
@@ -235,7 +249,7 @@ def find_best_MLP_hiperparams(train_df, hiperparameters, spectrogram_config, epo
     y = train_df['label'].values
 
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)
-    patience=5
+    patience = 5
 
     for arch in  hiperparameters['architecture']:
         for lr in hiperparameters['learning_rates']:
@@ -276,23 +290,59 @@ def find_best_MLP_hiperparams(train_df, hiperparameters, spectrogram_config, epo
                     'mean_auc': mean_auc,
                     'mean_f1': mean_f1
                 })
-                print(f"Arch: {arch}, LR: {lr}, Weighted Loss: {use_weights}, Max hz FALTA => Mean AUC: {mean_auc:.4f}, Mean F1: {mean_f1:.4f}")
+                print(f"Arch: {arch}, LR: {lr}, Weighted Loss: {use_weights}, Patience: {patience} => Mean AUC: {mean_auc:.4f}, Mean F1: {mean_f1:.4f}")
 
     # sort by mean_auc, then mean_f1
     results = sorted(results, key=lambda x: (x['mean_auc'], x['mean_f1']), reverse=True)
     print("\nBest hyperparameters:")
     print(results[0])
-    return results
 
 # RANDOM FOREST
 
-def train_random_forest(X_train, y_train, X_val, y_val):
-    rf = RandomForestClassifier(n_estimators=100, random_state=42)
+def train_random_forest(X_train, y_train, X_val, y_val, n_estimators, max_depth, seed):
+    rf = RandomForestClassifier(n_estimators=n_estimators, max_depth=max_depth, random_state=seed, verbose=1)
     rf.fit(X_train, y_train)
     preds = rf.predict(X_val)
     acc = accuracy_score(y_val, preds)
-    print(f"Validation Accuracy (Random Forest): {acc:.4f}")
+    print(f'Validation Accuracy (Random Forest): {acc:.4f}')
     return rf
+
+def find_best_RF_hiperparams(X, y, param_grid, n_folds=5, seed=42):
+    skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
+    results = []
+
+    for params in ParameterGrid(param_grid):
+        fold_aucs = []
+        fold_f1s = []
+        for fold, (train_idx, val_idx) in enumerate(skf.split(X, y)):
+            X_train, X_val = X[train_idx], X[val_idx]
+            y_train, y_val = y[train_idx], y[val_idx]
+            rf = RandomForestClassifier(
+                n_estimators=params['n_estimators'],
+                max_depth=params['max_depth'],
+                random_state=seed,
+                n_jobs=-1
+            )
+            rf.fit(X_train, y_train)
+            preds = rf.predict(X_val)
+            probs = rf.predict_proba(X_val)[:, 1]
+            auc = roc_auc_score(y_val, probs)
+            f1 = f1_score(y_val, preds)
+            fold_aucs.append(auc)
+            fold_f1s.append(f1)
+        mean_auc = np.mean(fold_aucs)
+        mean_f1 = np.mean(fold_f1s)
+        results.append({
+            'params': params,
+            'mean_auc': mean_auc,
+            'mean_f1': mean_f1
+        })
+        print(f"Params: {params} => Mean AUC: {mean_auc:.4f}, Mean F1: {mean_f1:.4f}")
+
+    results = sorted(results, key=lambda x: (x['mean_auc'], x['mean_f1']), reverse=True)
+    print("\nBest hyperparameters:")
+    print(results[0])
+    return results[0]
 
 # RANDOM FOREST
 
