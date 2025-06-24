@@ -1,4 +1,3 @@
-from sklearn.metrics import roc_auc_score
 import torch.optim as optim
 import torch.nn as nn
 import torch
@@ -70,7 +69,7 @@ class BetaVAE(nn.Module):
         kld_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         return recon_loss + beta * kld_loss, recon_loss, kld_loss
 
-def train_vae():
+def train_vae(train_loader):
     device = torch.device("mps" if torch.mps.is_available() else "cpu")
 
     epochs = 50
@@ -211,3 +210,78 @@ class Discriminator(nn.Module):
         )
     def forward(self, x):
         return self.model(x).view(-1)
+    
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import os
+
+# Dispositivo (Apple MPS GPU si existe, sino CPU)
+device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+print(f"Usando dispositivo: {device}")
+
+def train_gan(train_loader):
+    # Crear instancias
+    z_dim = 100
+    gen = Generator(z_dim).to(device)
+    disc = Discriminator().to(device)
+
+    # Criterio de adversarial loss
+    criterion = nn.BCEWithLogitsLoss() # probar con sum
+
+    # Optimizadores
+    lr = 2e-4
+    beta1 = 0.5
+    gen_optimizer = optim.Adam(gen.parameters(), lr=lr, betas=(beta1, 0.999))
+    disc_optimizer = optim.Adam(disc.parameters(), lr=lr, betas=(beta1, 0.999))
+
+    # Carpeta para guardar outputs
+    os.makedirs("checkpoints", exist_ok=True)
+    os.makedirs("samples", exist_ok=True)
+
+    # Loop de entrenamiento
+    epochs = 100  # Cambia si querés
+    for epoch in range(1, epochs + 1):
+        for batch in train_loader:
+            real_images = batch[0].to(device)
+
+            batch_size = real_images.size(0)
+
+            # --------------------------------------------------
+            # Entrenar Discriminador
+            # --------------------------------------------------
+            z = torch.randn(batch_size, z_dim, 1, 1, device=device)
+            fake_images = gen(z)
+
+            real_labels = torch.ones(batch_size, device=device)
+            fake_labels = torch.zeros(batch_size, device=device)
+
+            disc_optimizer.zero_grad()
+
+            real_preds = disc(real_images)
+            loss_real = criterion(real_preds, real_labels)
+
+            fake_preds = disc(fake_images.detach())
+            loss_fake = criterion(fake_preds, fake_labels)
+
+            loss_disc = loss_real + loss_fake
+            loss_disc.backward()
+            disc_optimizer.step()
+
+            # --------------------------------------------------
+            # Entrenar Generador
+            # --------------------------------------------------
+            gen_optimizer.zero_grad()
+            fake_preds = disc(fake_images)  # Ahora sin detach
+            loss_gen = criterion(fake_preds, real_labels)  # Queremos que diga "reales"
+            loss_gen.backward()
+            gen_optimizer.step()
+
+        # ---- Fin de la época ----
+        print(f"Epoch [{epoch}/{epochs}], "
+            f"Loss D: {loss_disc.item():.4f}, "
+            f"Loss G: {loss_gen.item():.4f}")
+
+    print("Entrenamiento finalizado ✅")
+    return gen, disc

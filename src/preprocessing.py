@@ -7,15 +7,21 @@ import torch
 def normalize(dataset:pd.DataFrame, column:str):
     dataset[column] = dataset[column].apply(lambda x: x / np.max(np.abs(x)))
 
-def get_melspectrogram(sample:pd.DataFrame, sampling_rate:int, n_fft:int, hop_length:int, n_mels:int, max_freq):
-    mel_spectrogram = librosa.feature.melspectrogram(y=np.array(sample), sr=sampling_rate, n_fft=n_fft, hop_length=hop_length, n_mels=n_mels, fmax=max_freq)
+def get_melspectrogram(sample:pd.DataFrame, sampling_rate:int, fft_samples:int, hop_length:int, n_mel_bins:int, max_freq):
+    mel_spectrogram = librosa.feature.melspectrogram(y=np.array(sample), sr=sampling_rate, n_fft=fft_samples, hop_length=hop_length, n_mels=n_mel_bins, fmax=max_freq)
     mel_spectrogram = librosa.power_to_db(mel_spectrogram, ref=np.max)
     return mel_spectrogram
 
-def get_all_mel_spectrograms(audio_df:pd.DataFrame, sampling_rate:int, n_fft:int, hop_length:int, n_mels:int):
+def get_all_mel_spectrograms(audio_df:pd.DataFrame, spectrogram_config:dict):
+    sampling_rate = spectrogram_config['SR']
+    fft_samples = spectrogram_config['FFT_SAMPLES']
+    hop_length = spectrogram_config['HOP_LENGTH']
+    n_mel_bins = spectrogram_config['MEL_BINS']
+    max_frequency =spectrogram_config['MAX_FREQ']
+
     mel_specs = []
     for audio in audio_df['audio']:
-        mel = get_melspectrogram(audio, sampling_rate, n_fft, hop_length, n_mels)
+        mel = get_melspectrogram(audio, sampling_rate, fft_samples, hop_length, n_mel_bins, max_frequency)
         mel_specs.append(mel.flatten())
     return np.array(mel_specs)
 

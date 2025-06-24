@@ -1,4 +1,6 @@
 from torch.utils.data import TensorDataset, DataLoader
+from src.models.classification import *
+from src.models.generative import *
 import pandas as pd
 import librosa
 import torch
@@ -37,3 +39,53 @@ def load_model(path="saved_models/bvae.pt"):
     model.eval()
     print(f"[✔] Modelo cargado desde: {path}")
     return model
+
+def save_aae_models(encoder, decoder, discriminator, path="saved_models/aae"):
+    os.makedirs(path, exist_ok=True)
+    torch.save(encoder.state_dict(), os.path.join(path, "encoder.pt"))
+    torch.save(decoder.state_dict(), os.path.join(path, "decoder.pt"))
+    torch.save(discriminator.state_dict(), os.path.join(path, "discriminator.pt"))
+    print(f"[✔] AAE guardado en: {path}")
+
+def load_aae_models(latent_dim=32, path="saved_models/aae"):
+    device = torch.device("mps" if torch.mps.is_available() else "cpu")
+
+    encoder = Encoder(latent_dim).to(device)
+    decoder = Decoder(latent_dim).to(device)
+    discriminator = Discriminator(latent_dim).to(device)
+
+    encoder.load_state_dict(torch.load(os.path.join(path, "encoder.pt"), map_location=device))
+    decoder.load_state_dict(torch.load(os.path.join(path, "decoder.pt"), map_location=device))
+    discriminator.load_state_dict(torch.load(os.path.join(path, "discriminator.pt"), map_location=device))
+
+    encoder.eval()
+    decoder.eval()
+    discriminator.eval()
+
+    print(f"[✔] AAE cargado desde: {path}")
+    return encoder, decoder, discriminator
+
+def save_gan_models(gen, disc, path_disc=r"C:\Users\bianc\Machine\TPFINAL\saved_models\gan\disc.pth", path_gen=r"C:\Users\bianc\Machine\TPFINAL\saved_models\gan\gen.pth"):
+    os.makedirs(os.path.dirname(path_disc), exist_ok=True)
+    os.makedirs(os.path.dirname(path_gen), exist_ok=True)
+
+    torch.save(disc.state_dict(), path_disc)
+    torch.save(gen.state_dict(), path_gen)
+    print(f"[✔] Discriminador guardado en: {path_disc}")
+    print(f"[✔] Generador guardado en: {path_gen}")
+
+def load_gan_models(device, z_dim=100,
+                    path_disc=r"saved_models\gan\disc.pth",
+                    path_gen=r"saved_models\gan\gen.pth"):
+
+    gen = Generator(z_dim).to(device)
+    disc = Discriminator().to(device)
+
+    gen.load_state_dict(torch.load(path_gen, map_location=device))
+    disc.load_state_dict(torch.load(path_disc, map_location=device))
+
+    gen.eval()
+    disc.eval()
+
+    print(f"[✔] Modelos cargados desde:\n  - {path_gen}\n  - {path_disc}")
+    return gen, disc

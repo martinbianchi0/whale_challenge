@@ -1,4 +1,5 @@
 from IPython.display import Audio, display
+from src.preprocessing import *
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
@@ -6,8 +7,14 @@ import numpy as np
 import librosa
 
 
-def display_random_samples(dataset:pd.DataFrame, sampling_rate:int, seed:int):
+def display_random_samples(dataset:pd.DataFrame, seed:int, spectrogram_config:dict):
     np.random.seed(seed)
+
+    sampling_rate = spectrogram_config['SR']
+    fft_samples = spectrogram_config['FFT_SAMPLES']
+    hop_length = spectrogram_config['HOP_LENGTH']
+    n_mel_bins = spectrogram_config['MEL_BINS']
+    max_frequency =spectrogram_config['MAX_FREQ']
 
     # SAMPLES
     whale_sample = dataset[dataset['label'] == 1].sample(5)['audio']
@@ -32,6 +39,52 @@ def display_random_samples(dataset:pd.DataFrame, sampling_rate:int, seed:int):
         axes[1, i].set_title('No Whale')
         axes[1, i].set_xticks([])
         axes[1, i].set_yticks([])
+
+    plt.tight_layout()
+    plt.show()
+
+    # MULTIPLE SPECTROGRAMS
+    fig, axes = plt.subplots(2, 5, figsize=(15, 6))
+
+    for i in range(5):
+        whale_sample_spectrogram = get_melspectrogram(whale_sample.iloc[i], sampling_rate, fft_samples, hop_length, n_mel_bins, max_frequency)
+        img0 = librosa.display.specshow(whale_sample_spectrogram, sr=sampling_rate, hop_length=hop_length, ax=axes[0, i], x_axis='time', y_axis='hz', cmap='magma', fmax=max_frequency)
+        axes[0, i].set_title('Whale')
+        axes[0, i].set_ylim([0, max_frequency])
+        axes[0, i].set_xticks([])
+        axes[0, i].set_yticks([])
+        axes[0, i].set_xlabel('')
+        axes[0, i].set_ylabel('')
+
+        noise_sample_spectrogram = get_melspectrogram(noise_sample.iloc[i], sampling_rate, fft_samples, hop_length, n_mel_bins, max_frequency)
+        img1 = librosa.display.specshow(noise_sample_spectrogram, sr=sampling_rate, hop_length=hop_length, ax=axes[1, i], x_axis='time', y_axis='hz', cmap='magma', fmax=max_frequency)
+        axes[1, i].set_title('No Whale')
+        axes[1, i].set_ylim([0, max_frequency])
+        axes[1, i].set_xticks([])
+        axes[1, i].set_yticks([])
+        axes[1, i].set_xlabel('')
+        axes[1, i].set_ylabel('')
+
+    plt.tight_layout()
+    plt.show()
+
+    # TWO SPECTROGRAMS
+    whale_sample2 = dataset[dataset['label'] == 1].sample(1, random_state=seed+1)['audio']
+    noise_sample2 = dataset[dataset['label'] == 0].sample(1, random_state=seed+1)['audio']
+    
+    fig, axes = plt.subplots(1, 2, figsize=(7, 3))
+
+    whale_sample2_spectrogram = get_melspectrogram(whale_sample2.iloc[0], sampling_rate, fft_samples, hop_length, n_mel_bins, max_frequency)
+    img0 = librosa.display.specshow(whale_sample2_spectrogram, sr=sampling_rate, hop_length=hop_length, ax=axes[0], x_axis='time', y_axis='hz', cmap='magma', fmax=max_frequency)
+    axes[0].set_title('Whale')
+    axes[0].set_ylim([0, max_frequency])
+    fig.colorbar(img0, ax=axes[0], format="%+2.0f dB")
+
+    noise_sample2_spectrogram = get_melspectrogram(noise_sample2.iloc[0], sampling_rate, fft_samples, hop_length, n_mel_bins, max_frequency)
+    img1 = librosa.display.specshow(noise_sample2_spectrogram, sr=sampling_rate, hop_length=hop_length, ax=axes[1], x_axis='time', y_axis='hz', cmap='magma', fmax=max_frequency)
+    axes[1].set_title('No Whale')
+    axes[1].set_ylim([0, max_frequency])
+    fig.colorbar(img1, ax=axes[1], format="%+2.0f dB")
 
     plt.tight_layout()
     plt.show()
@@ -85,11 +138,18 @@ def plot_pca(dataset:pd.DataFrame, pca_arr):
     scatter.legend(handles=handles, title='Class', labels=['Noise', 'Whale'])
     plt.show()
 
-def plot_average_spectrograms(audio_df:pd.DataFrame):
+def plot_average_spectrograms(audio_df:pd.DataFrame, spectrogram_config:dict):
+
+    sampling_rate = spectrogram_config['SR']
+    fft_samples = spectrogram_config['FFT_SAMPLES']
+    hop_length = spectrogram_config['HOP_LENGTH']
+    n_mel_bins = spectrogram_config['MEL_BINS']
+    max_frequency =spectrogram_config['MAX_FREQ']
+
     whale_spectrograms = []
     noise_spectrograms = []
     for audio, label in zip(audio_df['audio'], audio_df['label']):
-        spectrogram = get_melspectrogram(audio)
+        spectrogram = get_melspectrogram(audio, sampling_rate, fft_samples, hop_length, n_mel_bins, max_frequency)
         if label == 1:
             whale_spectrograms.append(spectrogram)
         else: 
@@ -103,23 +163,23 @@ def plot_average_spectrograms(audio_df:pd.DataFrame):
     average_differences_spectrogram = whale_average_spectrogram - noise_average_spectrogram
 
     fig, axes = plt.subplots(1, 3, figsize=(10, 3))
-    img0 = librosa.display.specshow(whale_average_spectrogram, sr=SR, hop_length=HOP_LENGTH, ax=axes[0], x_axis='time', y_axis='hz', cmap='magma', fmax=MAX_FREQ)
+    img0 = librosa.display.specshow(whale_average_spectrogram, sr=sampling_rate, hop_length=hop_length, ax=axes[0], x_axis='time', y_axis='hz', cmap='magma', fmax=max_frequency)
     axes[0].set_title('Whale Call Average Spectrogram', pad=20)
-    axes[0].set_ylim([0, MAX_FREQ])
+    axes[0].set_ylim([0, max_frequency])
     # axes[0].set_xticks([])
     # axes[0].set_yticks([])
     fig.colorbar(img0, ax=axes[0], format="%+2.0f dB")
 
-    img1 = librosa.display.specshow(noise_average_spectrogram, sr=SR, hop_length=HOP_LENGTH, ax=axes[1], x_axis='time', y_axis='hz', cmap='magma', fmax=MAX_FREQ)
+    img1 = librosa.display.specshow(noise_average_spectrogram, sr=sampling_rate, hop_length=hop_length, ax=axes[1], x_axis='time', y_axis='hz', cmap='magma', fmax=max_frequency)
     axes[1].set_title('No Whale Call Average Spectrogram', pad=20)
-    axes[1].set_ylim([0, MAX_FREQ])
+    axes[1].set_ylim([0, max_frequency])
     # axes[1].set_xticks([])
     # axes[1].set_yticks([])
     fig.colorbar(img1, ax=axes[1], format="%+2.0f dB")
 
-    img2 = librosa.display.specshow(average_differences_spectrogram, sr=SR, hop_length=HOP_LENGTH, ax=axes[2], x_axis='time', y_axis='hz', cmap='magma', fmax=MAX_FREQ)
+    img2 = librosa.display.specshow(average_differences_spectrogram, sr=sampling_rate, hop_length=hop_length, ax=axes[2], x_axis='time', y_axis='hz', cmap='magma', fmax=max_frequency)
     axes[2].set_title('Average Differences Spectrogram', pad=20)
-    axes[2].set_ylim([0, MAX_FREQ])
+    axes[2].set_ylim([0, max_frequency])
     # axes[2].set_xticks([])
     # axes[2].set_yticks([])
     fig.colorbar(img2, ax=axes[2], format="%+2.0f dB")
