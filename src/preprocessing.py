@@ -88,3 +88,46 @@ def standarize(X:np.ndarray):
     print(f'Shape of X: {X.shape}')
 
     return X, mean, std
+
+def fix_length(audio, sampling_rate:2000, desired_length=2.0):
+    target_len = int(sampling_rate * desired_length)
+
+    # si es más largo, recorto
+    if len(audio) > target_len:
+        audio = audio[:target_len]
+
+    # si es más corto, relleno con ceros
+    elif len(audio) < target_len:
+        pad_width = target_len - len(audio)
+        audio = np.pad(audio, (0, pad_width), mode='constant')
+
+    return audio
+
+def augment_audio(audio_dataset, data_augmentation_config, percentage=0.2, sampling_rate=2000, seed=42):
+    whale_audios = audio_dataset[audio_dataset['label'] == 1]
+    n_samples = int(len(whale_audios)*percentage)
+    samples = whale_audios.sample(n_samples, random_state=seed)
+
+    augmented_samples = []
+    label = 1
+    filepath = None
+    
+    for index, sample in samples.iterrows():
+        clip_name, audio = sample['clip_name'], sample['audio']
+        # time stretch -> cambia la duración del canto
+        for rate in data_augmentation_config['TIME_STRETCH_FACTORS']:
+            stretched = librosa.effects.time_stretch(audio, rate=rate)
+            stretched = fix_length(stretched, sampling_rate, desired_length=2.0)
+            augmented_samples.append((f"{clip_name}_stretch_{rate}.aiff", label, filepath, stretched))
+        # pitch shift -> sube/baja semitonos
+        for n_steps in data_augmentation_config['PITCH_SHIFTS']:
+            shifted = librosa.effects.pitch_shift(audio, sr=sampling_rate, n_steps=n_steps)
+            augmented_samples.append((f"{clip_name}_shift_{n_steps}.aiff", label, filepath, shifted))
+        # agrega ruido gaussiano 
+        noise = data_augmentation_config['NOISE_LEVEL'] * np.random.randn(len(audio))
+        noisy_audio = audio + noise
+        augmented_samples.append((f"{clip_name}_noisy.aiff", label, filepath, noisy_audio))
+        # podria agregar que se puedan escuchar un par de originales vs time y pitch y ruido
+
+    print(f'New augmented samples: {len(augmented_samples)}')
+    return augmented_samples

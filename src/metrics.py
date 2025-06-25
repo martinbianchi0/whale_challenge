@@ -26,14 +26,28 @@ def compute_roc(y_true, y_probs):
     fpr, tpr, _ = roc_curve(y_true, y_probs)
     return auc, fpr, tpr
 
-def plot_roc_curves(roc_data_dict):
+def plot_roc_curves(models, val_loader, X_val_np, y_val_np):
     """
     Plotea curvas ROC.
     roc_data_dict: dict con keys = nombres de modelos, values = (auc, fpr, tpr)
     """
-    plt.figure(figsize=(8, 6))
-    for name, (auc, fpr, tpr) in roc_data_dict.items():
-        plt.plot(fpr, tpr, label=f'{name} (AUC = {auc:.3f})')
+    device = torch.device('mps' if torch.mps.is_available() else 'cpu')
+    roc_data = {}
+    for model in models:
+        if model == 'MLP':
+            mlp_probs = get_mlp_probs(models[model], val_loader, device)
+            mlp_auc, mlp_fpr, mlp_tpr = compute_roc(y_val_np, mlp_probs)
+            roc_data[model] = (mlp_auc, mlp_fpr, mlp_tpr)
+        else:
+            model_probs = get_model_probs_sklearn(models[model], X_val_np)
+            model_auc, model_fpr, model_tpr = compute_roc(y_val_np, model_probs)
+            roc_data[model] = (model_auc, model_fpr, model_tpr)
+
+    plt.figure(figsize=(6, 4))
+
+    for name, (auc, fpr, tpr) in roc_data.items():
+        plt.plot(fpr, tpr, label=f'{name} [AUC = {auc:.3f}]')
+
     plt.plot([0, 1], [0, 1], 'k--', linewidth=0.8)
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
@@ -49,3 +63,4 @@ def show_confusion_matrix(model, X_val, y_val):
     disp = ConfusionMatrixDisplay(confusion_matrix=cm)
     disp.plot(cmap='Blues')
     plt.show()
+

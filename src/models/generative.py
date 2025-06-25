@@ -219,7 +219,6 @@ import os
 
 # Dispositivo (Apple MPS GPU si existe, sino CPU)
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-print(f"Usando dispositivo: {device}")
 
 def train_gan(train_loader):
     # Crear instancias
