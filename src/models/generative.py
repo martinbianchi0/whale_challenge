@@ -1,14 +1,20 @@
-import torch.nn.functional as F
+from IPython.display import Audio, display
+import matplotlib.pyplot as plt
+from torch.functional import F
 import torch.optim as optim
 import torch.nn as nn
+import numpy as np
+import librosa
 import torch
 import copy
+import os
 
 # BETA VARIATIONAL AUTOENCODER MODEL
 
 class BetaVAE(nn.Module):
     def __init__(self, latent_dim=32):
         super(BetaVAE, self).__init__()
+        self.latent_dimension=latent_dim
 
         # Encoder
         self.enc = nn.Sequential(
@@ -70,14 +76,15 @@ class BetaVAE(nn.Module):
         kld_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         return recon_loss + beta * kld_loss, recon_loss, kld_loss
 
-def train_vae(train_loader):
+def train_vae(train_loader, latent_dimension=32, learning_rate=1e-3, beta=3.0, epochs=50):
     device = torch.device("mps" if torch.mps.is_available() else "cpu")
 
-    epochs = 50
-    model = BetaVAE(latent_dim=32).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    model = BetaVAE(latent_dim=latent_dimension).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    beta = 3.0  # Podés empezar en 1.0 e ir probando (0.25, 4.0, etc.)
+    # Store losses for plotting
+    losses, recons, kls = [], [], []
+
     for epoch in range(epochs):
         model.train()
         total_loss, total_recon, total_kl = 0, 0, 0
@@ -95,8 +102,78 @@ def train_vae(train_loader):
             total_recon += recon_loss.item()
             total_kl += kld_loss.item()
 
+        losses.append(total_loss)
+        recons.append(total_recon)
+        kls.append(total_kl)
         print(f"Epoch [{epoch+1}], Loss: {total_loss:.2f}, Recon: {total_recon:.2f}, KL: {total_kl:.2f}")
+    # Plot after training
+    plot_vae_losses(losses, recons, kls)
     return model
+
+def plot_vae_losses(losses, recons, kls):
+    epochs = range(1, len(losses) + 1)
+    fig, axs = plt.subplots(1, 2, figsize=(12, 4))
+    # Plot recon and total loss together
+    axs[0].plot(epochs, losses, label='Total Loss')
+    axs[0].plot(epochs, recons, label='Reconstruction Loss')
+    axs[0].set_xlabel('Epoch')
+    axs[0].set_ylabel('Loss')
+    axs[0].set_title('Total & Reconstruction Loss')
+    axs[0].legend()
+    # Plot KL loss
+    axs[1].plot(epochs, kls, label='KL Divergence', color='orange')
+    axs[1].set_xlabel('Epoch')
+    axs[1].set_ylabel('KL')
+    axs[1].set_title('KL Divergence')
+    axs[1].legend()
+    plt.tight_layout()
+    plt.show()
+
+def display_vae_synthetic_samples(model, mean, std, spectrogram_config):
+    latent_dim = model.latent_dimension
+
+    # Ensure device is defined (use same logic as elsewhere)
+    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+
+    with torch.no_grad():
+        # 1. Generá un batch de vectores latentes Z ~ N(0, I)
+        z_samples = torch.randn(4, latent_dim).to(device)  # Por ejemplo, 4 muestras
+        # 2. Decodificá los Z para obtener espectrogramas
+        generated_specs = model.decode(z_samples)
+
+    # Ahora `generated_specs` es un tensor de shape [4, 1, 64, 64]
+
+    generated_specs = generated_specs.cpu().numpy()
+    fig, axes = plt.subplots(1, generated_specs.shape[0], figsize=(3 * generated_specs.shape[0], 3))
+    for i in range(generated_specs.shape[0]):
+        spec = generated_specs[i, 0, :, :]
+        spec = spec * std + mean
+        ax = axes[i] if generated_specs.shape[0] > 1 else axes
+        im = ax.imshow(spec, aspect='auto', origin='lower', cmap='magma')
+        ax.set_title(f"Synthetic Spectrogram {i+1}")
+        ax.axis('off')
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    plt.tight_layout()
+    plt.show()
+
+    SR = spectrogram_config['SR']
+    N_FFT = spectrogram_config['FFT_SAMPLES'] 
+    N_MELS = spectrogram_config['MEL_BINS']
+    HOP_LENGTH = spectrogram_config['HOP_LENGTH']
+
+    for i in range(generated_specs.shape[0]):
+        spec = generated_specs[i, 0, :, :]
+        # Desnormalizar
+        spec = spec * std + mean
+
+        # Invertir Mel -> STFT
+        mel_basis = librosa.filters.mel(sr=SR, n_fft=N_FFT, n_mels=N_MELS)
+        spec_inv = np.linalg.pinv(mel_basis).dot(np.exp(spec))
+        # Invertir STFT -> Audio
+        audio = librosa.griffinlim(spec_inv, hop_length=HOP_LENGTH, n_fft=N_FFT)
+        # Mostrar Audio
+        display(Audio(audio, rate=int(SR*1.5)))
+
 
 # AAEEEE
 
@@ -211,15 +288,10 @@ class Discriminator(nn.Module):
         )
     def forward(self, x):
         return self.model(x).view(-1)
-    
-
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import os
 
 # Dispositivo (Apple MPS GPU si existe, sino CPU)
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+print(f"Usando dispositivo: {device}")
 
 def train_gan(train_loader):
     # Crear instancias
