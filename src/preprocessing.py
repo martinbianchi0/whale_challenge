@@ -131,3 +131,13 @@ def augment_audio(audio_dataset, data_augmentation_config, percentage=0.2, sampl
 
     print(f'New augmented samples: {len(augmented_samples)}')
     return augmented_samples
+
+def standarize_train_val(X_train, X_val):
+    train_mean = X_train.mean()
+    train_std = X_train.std() + 1e-8 # para no dividir x cero dsp
+    print(f'Mean: {train_mean}, std: {train_std}')
+
+    X_train_std = (X_train - train_mean) / train_std
+    X_val_std = (X_val - train_mean) / train_std
+
+    return X_train_std, X_val_std, train_mean, train_std
