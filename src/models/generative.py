@@ -13,10 +13,10 @@ import os
 
 class BetaVAE(nn.Module):
     def __init__(self, latent_dim=32):
-        super(BetaVAE, self).__init__()
+        super().__init__()
         self.latent_dimension=latent_dim
 
-        # Encoder
+        # encoder
         self.enc = nn.Sequential(
             # (1, 64, 64) -> (32, 32, 32)
             nn.Conv2d(1, 32, kernel_size=4, stride=2, padding=1),
@@ -34,7 +34,7 @@ class BetaVAE(nn.Module):
         self.fc_mu = nn.Linear(256 * 4 * 4, latent_dim)
         self.fc_logvar = nn.Linear(256 * 4 * 4, latent_dim)
 
-        # Decoder
+        # decoder
         self.decoder_fc = nn.Linear(latent_dim, 256 * 4 * 4)
         self.dec = nn.Sequential(
             # (256, 4, 4) -> (128, 8, 8)
@@ -48,7 +48,6 @@ class BetaVAE(nn.Module):
             nn.ReLU(),
             # (32, 32, 32) -> (1, 64, 64)
             nn.ConvTranspose2d(32, 1, kernel_size=4, stride=2, padding=1),
-            # Sin activación final para MSE loss (usá Sigmoid para [0,1])
         )
 
     def encode(self, x):
@@ -82,7 +81,6 @@ def train_vae(train_loader, latent_dimension=32, learning_rate=1e-3, beta=3.0, e
     model = BetaVAE(latent_dim=latent_dimension).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    # Store losses for plotting
     losses, recons, kls = [], [], []
 
     for epoch in range(epochs):
@@ -105,22 +103,23 @@ def train_vae(train_loader, latent_dimension=32, learning_rate=1e-3, beta=3.0, e
         losses.append(total_loss)
         recons.append(total_recon)
         kls.append(total_kl)
-        print(f"Epoch [{epoch+1}], Loss: {total_loss:.2f}, Recon: {total_recon:.2f}, KL: {total_kl:.2f}")
-    # Plot after training
+        print(f'Epoch [{epoch+1}], Loss: {total_loss:.2f}, Recon: {total_recon:.2f}, KL: {total_kl:.2f}')
     plot_vae_losses(losses, recons, kls)
     return model
 
 def plot_vae_losses(losses, recons, kls):
     epochs = range(1, len(losses) + 1)
-    fig, axs = plt.subplots(1, 2, figsize=(12, 4))
-    # Plot recon and total loss together
+    fig,axs = plt.subplots(1, 2, figsize=(12, 4))
+
+    # recon y loss total
     axs[0].plot(epochs, losses, label='Total Loss')
     axs[0].plot(epochs, recons, label='Reconstruction Loss')
     axs[0].set_xlabel('Epoch')
     axs[0].set_ylabel('Loss')
     axs[0].set_title('Total & Reconstruction Loss')
     axs[0].legend()
-    # Plot KL loss
+
+    # kl
     axs[1].plot(epochs, kls, label='KL Divergence', color='orange')
     axs[1].set_xlabel('Epoch')
     axs[1].set_ylabel('KL')
@@ -129,62 +128,23 @@ def plot_vae_losses(losses, recons, kls):
     plt.tight_layout()
     plt.show()
 
-def display_vae_synthetic_samples(model, mean, std, spectrogram_config):
-    latent_dim = model.latent_dimension
-
-    # Ensure device is defined (use same logic as elsewhere)
-    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-
-    with torch.no_grad():
-        # 1. Generá un batch de vectores latentes Z ~ N(0, I)
-        z_samples = torch.randn(4, latent_dim).to(device)  # Por ejemplo, 4 muestras
-        # 2. Decodificá los Z para obtener espectrogramas
-        generated_specs = model.decode(z_samples)
-
-    # Ahora `generated_specs` es un tensor de shape [4, 1, 64, 64]
-
-    generated_specs = generated_specs.cpu().numpy()
-    fig, axes = plt.subplots(1, generated_specs.shape[0], figsize=(3 * generated_specs.shape[0], 3))
-    for i in range(generated_specs.shape[0]):
-        spec = generated_specs[i, 0, :, :]
-        spec = spec * std + mean
-        ax = axes[i] if generated_specs.shape[0] > 1 else axes
-        im = ax.imshow(spec, aspect='auto', origin='lower', cmap='magma')
-        ax.set_title(f"Synthetic Spectrogram {i+1}")
-        ax.axis('off')
-        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-    plt.tight_layout()
-    plt.show()
-
-    SR = spectrogram_config['SR']
-    N_FFT = spectrogram_config['FFT_SAMPLES'] 
-    N_MELS = spectrogram_config['MEL_BINS']
-    HOP_LENGTH = spectrogram_config['HOP_LENGTH']
-
-    for i in range(generated_specs.shape[0]):
-        spec = generated_specs[i, 0, :, :]
-        # Desnormalizar
-        spec = spec * std + mean
-
-        # Invertir Mel -> STFT
-        mel_basis = librosa.filters.mel(sr=SR, n_fft=N_FFT, n_mels=N_MELS)
-        spec_inv = np.linalg.pinv(mel_basis).dot(np.exp(spec))
-        # Invertir STFT -> Audio
-        audio = librosa.griffinlim(spec_inv, hop_length=HOP_LENGTH, n_fft=N_FFT)
-        # Mostrar Audio
-        display(Audio(audio, rate=int(SR*1.5)))
-
-
-# AAEEEE
+# ADVERSARIAL AUTOENCODER MODEL
 
 class Encoder(nn.Module):
     def __init__(self, latent_dim):
         super().__init__()
-        self.conv = nn.Sequential(
-            nn.Conv2d(1, 32, 4, 2, 1), nn.ReLU(),
-            nn.Conv2d(32, 64, 4, 2, 1), nn.ReLU(),
-            nn.Conv2d(64, 128, 4, 2, 1), nn.ReLU(),
-            nn.Conv2d(128, 256, 4, 2, 1), nn.ReLU()  # Match VAE structure
+        self.conv = nn.Sequential( # igual al vae
+            nn.Conv2d(1, 32, 4, 2, 1), 
+            nn.ReLU(),
+
+            nn.Conv2d(32, 64, 4, 2, 1), 
+            nn.ReLU(),
+
+            nn.Conv2d(64, 128, 4, 2, 1), 
+            nn.ReLU(),
+
+            nn.Conv2d(128, 256, 4, 2, 1), 
+            nn.ReLU()
         )
         self.fc = nn.Linear(256 * 4 * 4, latent_dim)
 
@@ -198,10 +158,16 @@ class Decoder(nn.Module):
         super().__init__()
         self.fc = nn.Linear(latent_dim, 256 * 4 * 4)
         self.deconv = nn.Sequential(
-            nn.ConvTranspose2d(256, 128, 4, 2, 1), nn.ReLU(),
-            nn.ConvTranspose2d(128, 64, 4, 2, 1), nn.ReLU(),
-            nn.ConvTranspose2d(64, 32, 4, 2, 1), nn.ReLU(),
-            nn.ConvTranspose2d(32, 1, 4, 2, 1), nn.Tanh()  # Match GAN / VAE
+            nn.ConvTranspose2d(256, 128, 4, 2, 1), 
+            nn.ReLU(),
+
+            nn.ConvTranspose2d(128, 64, 4, 2, 1), 
+            nn.ReLU(),
+
+            nn.ConvTranspose2d(64, 32, 4, 2, 1), 
+            nn.ReLU(),
+
+            nn.ConvTranspose2d(32, 1, 4, 2, 1), 
         )
 
     def forward(self, z):
@@ -212,148 +178,191 @@ class Discriminator(nn.Module):
     def __init__(self, latent_dim):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(latent_dim, 128), nn.ReLU(),
-            nn.Linear(128, 64), nn.ReLU(),
-            nn.Linear(64, 1), nn.Sigmoid()
+            nn.Linear(latent_dim, 128), 
+            nn.ReLU(),
+
+            nn.Linear(128, 64), 
+            nn.ReLU(),
+            
+            nn.Linear(64, 1), 
+            nn.Sigmoid()
         )
 
     def forward(self, z):
         return self.net(z)
 
-# GAANNN
+def train_aae(train_loader, device, epochs=50, latent_dim=32, learning_rate=1e-3):
+    # Entrenamiento
+    encoder = Encoder(latent_dim).to(device)
+    decoder = Decoder(latent_dim).to(device)
+    discriminator = Discriminator(latent_dim).to(device)
 
-import torch
-import torch.nn as nn
+    opt_autoenc = torch.optim.Adam(list(encoder.parameters()) + list(decoder.parameters()), lr=1e-3)
+    opt_disc = torch.optim.Adam(discriminator.parameters(), lr=learning_rate)
 
-class Generator(nn.Module):
-    def __init__(self, z_dim=100, ngf=64):  # ngf = tamaño base de filtros
-        super(Generator, self).__init__()
+    bce = nn.BCELoss(reduction="sum")
+    recon_loss_fn = nn.MSELoss(reduction="sum")
 
-        self.model = nn.Sequential(
-            # Entrada Z: [batch, z_dim, 1, 1]
-            nn.ConvTranspose2d(z_dim, ngf * 8, 4, 1, 0, bias=False),
-            nn.BatchNorm2d(ngf * 8),
-            nn.ReLU(True),
-            
-            # [batch, ngf*8, 4, 4]
-            nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ngf * 4),
-            nn.ReLU(True),
-            
-            # [batch, ngf*4, 8, 8]
-            nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ngf * 2),
-            nn.ReLU(True),
-            
-            # [batch, ngf*2, 16, 16]
-            nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ngf),
-            nn.ReLU(True),
+    for epoch in range(epochs):
+        encoder.train(); decoder.train(); discriminator.train()
+        total_recon, total_disc, total_gen = 0, 0, 0
 
-            # [batch, ngf, 32, 32]
-            nn.ConvTranspose2d(ngf, 1, 4, 2, 1, bias=False),
-            nn.Tanh()
-            # Salida: [batch, 1, 64, 64]
-        )
-    def forward(self, x):
-        return self.model(x)
-
-class Discriminator(nn.Module):
-    def __init__(self, ndf=64):  # ndf = tamaño base de filtros
-        super(Discriminator, self).__init__()
-
-        self.model = nn.Sequential(
-            # [batch, 1, 64, 64]
-            nn.Conv2d(1, ndf, 4, 2, 1, bias=False),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            # [batch, ndf, 32, 32]
-            nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ndf * 2),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            # [batch, ndf*2, 16, 16]
-            nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ndf * 4),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            # [batch, ndf*4, 8, 8]
-            nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ndf * 8),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            # [batch, ndf*8, 4, 4]
-            nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
-            # Salida escalar
-        )
-    def forward(self, x):
-        return self.model(x).view(-1)
-
-# Dispositivo (Apple MPS GPU si existe, sino CPU)
-device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-print(f"Usando dispositivo: {device}")
-
-def train_gan(train_loader):
-    # Crear instancias
-    z_dim = 100
-    gen = Generator(z_dim).to(device)
-    disc = Discriminator().to(device)
-
-    # Criterio de adversarial loss
-    criterion = nn.BCEWithLogitsLoss() # probar con sum
-
-    # Optimizadores
-    lr = 2e-4
-    beta1 = 0.5
-    gen_optimizer = optim.Adam(gen.parameters(), lr=lr, betas=(beta1, 0.999))
-    disc_optimizer = optim.Adam(disc.parameters(), lr=lr, betas=(beta1, 0.999))
-
-    # Carpeta para guardar outputs
-    os.makedirs("checkpoints", exist_ok=True)
-    os.makedirs("samples", exist_ok=True)
-
-    # Loop de entrenamiento
-    epochs = 100  # Cambia si querés
-    for epoch in range(1, epochs + 1):
         for batch in train_loader:
-            real_images = batch[0].to(device)
+            x = batch[0].to(device)
 
-            batch_size = real_images.size(0)
+            # Reconstruccion
+            z = encoder(x)
+            x_recon = decoder(z)
+            recon_loss = recon_loss_fn(x_recon, x)
 
-            # --------------------------------------------------
-            # Entrenar Discriminador
-            # --------------------------------------------------
-            z = torch.randn(batch_size, z_dim, 1, 1, device=device)
-            fake_images = gen(z)
+            opt_autoenc.zero_grad()
+            recon_loss.backward()
+            opt_autoenc.step()
 
-            real_labels = torch.ones(batch_size, device=device)
-            fake_labels = torch.zeros(batch_size, device=device)
+            # Discriminador
+            z_real = torch.randn_like(z)
+            z_fake = encoder(x).detach()
+            d_real = discriminator(z_real)
+            d_fake = discriminator(z_fake)
 
-            disc_optimizer.zero_grad()
+            disc_loss = bce(d_real, torch.ones_like(d_real)) + bce(d_fake, torch.zeros_like(d_fake))
+            opt_disc.zero_grad()
+            disc_loss.backward()
+            opt_disc.step()
 
-            real_preds = disc(real_images)
-            loss_real = criterion(real_preds, real_labels)
+            # Generador (Encoder)
+            z_fake = encoder(x)
+            d_fake = discriminator(z_fake)
+            gen_loss = bce(d_fake, torch.ones_like(d_fake))
 
-            fake_preds = disc(fake_images.detach())
-            loss_fake = criterion(fake_preds, fake_labels)
+            opt_autoenc.zero_grad()
+            gen_loss.backward()
+            opt_autoenc.step()
 
-            loss_disc = loss_real + loss_fake
-            loss_disc.backward()
-            disc_optimizer.step()
+            total_recon += recon_loss.item()
+            total_disc += disc_loss.item()
+            total_gen += gen_loss.item()
 
-            # --------------------------------------------------
-            # Entrenar Generador
-            # --------------------------------------------------
-            gen_optimizer.zero_grad()
-            fake_preds = disc(fake_images)  # Ahora sin detach
-            loss_gen = criterion(fake_preds, real_labels)  # Queremos que diga "reales"
-            loss_gen.backward()
-            gen_optimizer.step()
+        print(f"Epoch [{epoch}] Recon: {total_recon:.2f}, Disc: {total_disc:.2f}, Gen: {total_gen:.2f}")
+    return encoder, decoder, discriminator
 
-        # ---- Fin de la época ----
-        print(f"Epoch [{epoch}/{epochs}], "
-            f"Loss D: {loss_disc.item():.4f}, "
-            f"Loss G: {loss_gen.item():.4f}")
+# GENERATIVE ADVERSARIAL NETWORK
 
-    print("Entrenamiento finalizado ✅")
-    return gen, disc
+class SpecGANGenerator(nn.Module):
+    def __init__(self, z_dim=100):
+        super(SpecGANGenerator, self).__init__()
+        self.net = nn.Sequential(
+
+            nn.Linear(z_dim, 1024 * 4 * 4),
+            nn.BatchNorm1d(1024 * 4 * 4),
+            nn.ReLU(True),
+            nn.Unflatten(1, (1024, 4, 4)),
+
+            nn.ConvTranspose2d(1024, 512, kernel_size=4, stride=2, padding=1), # -> 8x8
+            nn.BatchNorm2d(512),
+            nn.ReLU(True),
+
+            nn.ConvTranspose2d(512, 256, kernel_size=4, stride=2, padding=1), # -> 16x16
+            nn.BatchNorm2d(256),
+            nn.ReLU(True),
+
+            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1), # -> 32x32
+            nn.BatchNorm2d(128),
+            nn.ReLU(True),
+
+            nn.ConvTranspose2d(128, 1, kernel_size=4, stride=2, padding=1), # -> 64x64
+            nn.Tanh()
+        )
+
+    def forward(self, z):
+        return self.net(z)
+    
+class SpecGANDiscriminator(nn.Module):
+    def __init__(self):
+        super(SpecGANDiscriminator, self).__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(1, 128, kernel_size=4, stride=2, padding=1), # -> 32x32
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1), # -> 16x16
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(256, 512, kernel_size=4, stride=2, padding=1), # -> 8x8
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(512, 1024, kernel_size=4, stride=2, padding=1), # -> 4x4
+            nn.BatchNorm2d(1024),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Flatten(),
+            nn.Linear(1024 * 4 * 4, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        return self.net(x)
+    
+def train_gan(train_loader, noise_dimensions=100, epochs=200, learning_rate=2e-4):
+
+    device = 'mps' if torch.mps.is_available() else 'cpu'
+    batch_size = 128
+    print(device)
+
+    G = SpecGANGenerator(z_dim=noise_dimensions).to(device)
+    D = SpecGANDiscriminator().to(device)
+
+    criterion = nn.BCELoss()
+    opt_G = optim.Adam(G.parameters(), lr=learning_rate, betas=(0.5, 0.999))
+    opt_D = optim.Adam(D.parameters(), lr=learning_rate, betas=(0.5, 0.999))
+
+    for epoch in range(epochs):
+        for (real_specs, ) in train_loader:
+            real_specs = real_specs.to(device).float()
+
+            batch_size = real_specs.size(0)
+            real_labels = torch.ones(batch_size, 1, device=device)
+            fake_labels = torch.zeros(batch_size, 1, device=device)
+
+            z = torch.randn(batch_size, noise_dimensions, device=device)
+            fake_specs = G(z).detach()
+
+            D_real = D(real_specs).view(-1, 1)
+            D_fake = D(fake_specs).view(-1, 1)
+
+            loss_D_real = criterion(D_real, real_labels)
+            loss_D_fake = criterion(D_fake, fake_labels)
+            loss_D = loss_D_real + loss_D_fake
+
+            opt_D.zero_grad()
+            loss_D.backward()
+            opt_D.step()
+
+            z = torch.randn(batch_size, noise_dimensions, device=device)
+            fake_specs = G(z)
+
+            D_fake = D(fake_specs).view(-1, 1)
+            loss_G = criterion(D_fake, real_labels)
+
+            opt_G.zero_grad()
+            loss_G.backward()
+            opt_G.step()
+
+        print(f"Epoch {epoch+1}/{epochs} - Loss D: {loss_D.item():.4f}, Loss G: {loss_G.item():.4f}")
+
+        if (epoch + 1) % 10 == 0:
+            with torch.no_grad():
+                z = torch.randn(16, noise_dimensions, device=device)
+                generated = G(z).cpu()
+                fig, axes = plt.subplots(4, 4, figsize=(8, 8))
+                for i, ax in enumerate(axes.flat):
+                    img = generated[i, 0].numpy()
+                    ax.imshow(img, aspect='auto', origin='lower', vmin=-1, vmax=1, cmap='viridis')
+                    ax.axis('off')
+                plt.suptitle(f"Epoch {epoch+1}")
+                plt.tight_layout()
+                plt.show()
+            os.makedirs('specgan', exist_ok=True)
+            torch.save(G.state_dict(), f'saved_models/specgan/generator_epoch_{epoch+1}.pt')
+            torch.save(D.state_dict(), f'saved_models/specgan/discriminator_epoch_{epoch+1}.pt')

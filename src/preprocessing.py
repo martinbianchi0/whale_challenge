@@ -7,7 +7,7 @@ import torch
 def normalize(dataset:pd.DataFrame, column:str):
     dataset[column] = dataset[column].apply(lambda x: x / np.max(np.abs(x)))
 
-def get_melspectrogram(sample:pd.DataFrame, sampling_rate:int, fft_samples:int, hop_length:int, n_mel_bins:int, max_freq):
+def get_melspectrogram(sample:pd.DataFrame, sampling_rate:int, fft_samples:int, hop_length:int, n_mel_bins:int, max_freq:int):
     mel_spectrogram = librosa.feature.melspectrogram(y=np.array(sample), sr=sampling_rate, n_fft=fft_samples, hop_length=hop_length, n_mels=n_mel_bins, fmax=max_freq)
     mel_spectrogram = librosa.power_to_db(mel_spectrogram, ref=np.max)
     return mel_spectrogram
@@ -69,7 +69,7 @@ def get_signal_energy(dataset:pd.DataFrame, column:str):
 
     return df
 
-def compute_global_min_max(audio_df):
+def compute_global_min_max(audio_df:pd.DataFrame):
     whale_specs = [get_melspectrogram(audio) for audio, label in zip(audio_df['audio'], audio_df['label']) if label == 1]
     global_min = np.min([spec.min() for spec in whale_specs])
     global_max = np.max([spec.max() for spec in whale_specs])
@@ -89,7 +89,7 @@ def standarize(X:np.ndarray):
 
     return X, mean, std
 
-def fix_length(audio, sampling_rate:2000, desired_length=2.0):
+def fix_length(audio, sampling_rate=2000, desired_length=2.0):
     target_len = int(sampling_rate * desired_length)
 
     # si es más largo, recorto
@@ -103,7 +103,7 @@ def fix_length(audio, sampling_rate:2000, desired_length=2.0):
 
     return audio
 
-def augment_audio(audio_dataset, data_augmentation_config, percentage=0.2, sampling_rate=2000, seed=42):
+def augment_audio(audio_dataset:pd.DataFrame, data_augmentation_config:dict, percentage=0.2, sampling_rate=2000, seed=42):
     whale_audios = audio_dataset[audio_dataset['label'] == 1]
     n_samples = int(len(whale_audios)*percentage)
     samples = whale_audios.sample(n_samples, random_state=seed)
@@ -127,17 +127,38 @@ def augment_audio(audio_dataset, data_augmentation_config, percentage=0.2, sampl
         noise = data_augmentation_config['NOISE_LEVEL'] * np.random.randn(len(audio))
         noisy_audio = audio + noise
         augmented_samples.append((f"{clip_name}_noisy.aiff", label, filepath, noisy_audio))
-        # podria agregar que se puedan escuchar un par de originales vs time y pitch y ruido
 
     print(f'New augmented samples: {len(augmented_samples)}')
     return augmented_samples
 
-def standarize_train_val(X_train, X_val):
+def standarize_train_val(X_train:np.ndarray, X_val:np.ndarray):
     train_mean = X_train.mean()
-    train_std = X_train.std() + 1e-8 # para no dividir x cero dsp
+    train_std = X_train.std() + 1e-8 # para no dividir x cero
     print(f'Mean: {train_mean}, std: {train_std}')
 
     X_train_std = (X_train - train_mean) / train_std
     X_val_std = (X_val - train_mean) / train_std
 
     return X_train_std, X_val_std, train_mean, train_std
+
+def standarize_train(X_train:np.ndarray):
+    train_mean = X_train.mean()
+    train_std = X_train.std() + 1e-8 # para no dividir x cero
+    print(f'Mean: {train_mean}, std: {train_std}')
+
+    X_train_std = (X_train - train_mean) / train_std
+
+    return X_train_std, train_mean, train_std
+
+def robust_normalize(x, low:float, high:float):
+    x = np.clip(x, low, high)  # elimina outliers extremos
+    print('low', low)
+    print('high', high)
+    x = (x - low) / (high - low) 
+    x = x * 2 - 1
+    return x
+
+def robust_denormalize(x_norm, low:float, high:float):
+    x = (x_norm + 1) / 2
+    x = x * (high - low) + low
+    return x

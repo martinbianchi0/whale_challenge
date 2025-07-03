@@ -1,4 +1,5 @@
-# 🐋 Whale Sound Classification with Generative Models
+# 🐋 Estudio de Data Augmentation en Audios de Ballenas con Modelos Generativos__<br/>
+
 
 Este proyecto explora la clasificación de sonidos de ballenas utilizando modelos generativos y técnicas de data augmentation basadas en autoencoders y redes adversarias.
 
@@ -18,32 +19,24 @@ El desarrollo se organiza en **etapas** con **checkpoints intermedios**, que per
 
 ### 🔹 Etapa 0 — Análisis exploratorio
 - Objetivo: Comprender la estructura del dataset.
-- Acciones: Visualización de espectrogramas, inspección de clases, balance de datos.
+- Acciones: Visualización de espectrogramas, inspección de clases, balance de datos, extracción de características de los espectrogramas y el audio, reducción de dimensionalidad.
 
 ---
 
 ### 🔹 Etapa 1 — Clasificador baseline
 - Objetivo: Establecer un punto de partida con datos reales.
-- Preprocesamiento: conversión a espectrogramas o extracción de features acústicos.
-- Modelos: MLP o CNN simple.
-- Métricas: accuracy, F1-score, precision, recall.
-- 📌 **Checkpoint 1**: "Con datos reales y un modelo simple, logramos X% de performance."
+- Preprocesamiento: Conversión de la señal de audio cruda a espectrogramas.
+- Modelos: MLP sin convoluciones, Random Forest, Gradient Boosting, MLP con convoluciones.
+- Métricas: Accuracy, F1-score, matriz de confusión, AUC-ROC, curvas de aprendizaje.
+- 📌 **Checkpoint 1**: Registrar la performance de datos reales y modelos simples.
 
 ---
 
-### 🔹 Etapa 2 — Modelado generativo (AAE / VAE / GAN)
+### 🔹 Etapa 2 — Modelado generativo (VAE / AAE / GAN)
 - Objetivo: Aprender una representación latente del audio.
-- Modelos: Autoencoder, Variational Autoencoder, opcional GAN.
-- Acciones: Entrenamiento, visualización del espacio latente, generación de muestras sintéticas.
-- 📌 **Checkpoint 2**: "Ya podemos generar datos sintéticos de calidad razonable."
-
----
-
-### 🔹 Etapa 3 — Clasificación desde espacio latente
-- Objetivo: Evaluar si el espacio latente tiene valor informativo.
-- Clasificación directamente desde vectores latentes.
-- Clustering y análisis de similaridad en el espacio latente.
-- 📌 **Checkpoint 3**: "El espacio latente captura estructura útil para clasificación y agrupamiento."
+- Modelos: Variational Autoencoder, Adversarial Autoencoder, Generative Adversarial Network
+- Acciones: Entrenamiento, visualización del espacio latente, generación de muestras sintéticas, comparación entre las muestras sintéticas y reales mediante reducción de dimensionalidad.
+- 📌 **Checkpoint 2**: Poder producir espectrogramas sintéticos usando modelos generativos.
 
 ---
 
@@ -51,60 +44,22 @@ El desarrollo se organiza en **etapas** con **checkpoints intermedios**, que per
 - Objetivo: Mejorar el clasificador incorporando datos generados.
 - Combinación de datos reales + sintéticos para entrenamiento.
 - Comparación con el baseline original.
-- 📌 **Checkpoint 4**: "La data generada mejora / no mejora la clasificación."
+- 📌 **Checkpoint 4**: Medir la performance de los modelos entrenados con datos reales y sintéticos sobre audios reales.
 
 ---
 
-### 🔹 Etapa 5 — Robustez del modelo generativo *(opcional)*
-- Objetivo: Medir estabilidad ante perturbaciones.
-- Entrenamiento con ruido.
-- Comparación de latentes y performance.
-- 📌 **Checkpoint 5**: "El modelo generativo mantiene / pierde estabilidad frente al ruido."
+## 📚 Resumen
 
----
-
-### 🔹 Etapa 6 — Transfer Learning
-- Objetivo: Reutilizar modelos entrenados para un nuevo dataset de mamíferos.
-- Uso del encoder como extractor de features.
-- Comparación contra entrenamiento desde cero.
-- 📌 **Checkpoint 6**: "El conocimiento del modelo se transfiere con éxito / no aporta."
-
----
-
-## 📚 Metodología
-
-- **Dataset:** Audios de ballenas vs ruido, convertidos en espectrogramas o representaciones acústicas.
-- **Preprocesamiento:** Normalización, resize, extracción de MFCC o STFT.
+- **Dataset:** Audios de ballenas vs ruido, convertidos en espectrogramas.
+- **Preprocesamiento:** Normalización, resize.
 - **Modelos generativos:** AE, VAE, GAN entrenados sobre espectrogramas.
-- **Clasificadores:** MLP, SVM, CNN.
-- **Métricas:** Accuracy, F1, precision, recall, distancia en espacio latente.
-- **Visualización:** PCA, t-SNE, curvas de aprendizaje, espectrogramas generados vs reales.
-
----
-
-## 📁 Estructura del proyecto
+- **Clasificadores:** MLP, Random Forest, Gradient Boosting, CNN.
+- **Métricas:** Accuracy, F1, matriz de confusión, AUC-ROC, curvas de aprendizaj.
+- **Visualización:** PCA, T-sne, curvas de aprendizaje, espectrogramas generados vs reales.
 
 
 ---
 
-## 🎨 Visualizaciones sugeridas
 
-- Espacio latente (2D PCA o t-SNE)
-- Spectrogramas reales vs generados
-- Curvas de aprendizaje (loss, accuracy)
-- Clusters en espacio latente
-- Comparación de métricas con y sin data generada
+Este proyecto fue desarrollado como parte del curso de Aprendizaje Automático y Aprendizaje Profundo por **Martín Bianchi** y **Federico Gutman**.
 
----
-
-## ✍️ Contribuciones
-
-Este proyecto fue desarrollado como parte del curso de Fundamentos de Inteligencia Artificial (FIA - UdeSA, 2024) por **Martín Bianchi**.
-
----
-
-## 🧪 Resultado esperado
-
-Validar si los modelos generativos pueden **mejorar el rendimiento de clasificación** en tareas de audio, y estudiar la **utilidad del espacio latente** para tareas de agrupamiento y transferencia.
-
----
